@@ -23,7 +23,7 @@ class Node:
     def __init__(self, state, path = [], priority = 0):
         self.state = state
         self.path = path 
-        self.prioroty = priority # This is for the priority_queue
+        self.priority = priority # This is for the priority_queue
 
 class SearchProblem:
     """
@@ -104,17 +104,19 @@ def depthFirstSearch(problem: SearchProblem):
         # get the first node in the stack. LIFO
         cur_node = stack.pop()
         # check whether this node is visited, if visited, jump to next node
-        if cur_node in visited:
+        if cur_node.state in visited:
             continue
         # if not visited, label this node as visited
-        visited.append(cur_node)
+        visited.append(cur_node.state)
+        # print([x.state for x in visited])
+        # print()
         if problem.isGoalState(cur_node.state):
             return cur_node.path
         # for all available children in the search graph, set their path as current node + it and push it into stack
-        children = problem.getSuccessors(cur_node) # For a given state, children is a list of triples, (successor, action, stepCost)
+        children = problem.getSuccessors(cur_node.state) # For a given state, children is a list of triples, (successor, action, stepCost)
         for child in children:
             if child[0] not in visited:
-                stack.push(Node(child[0], cur_node.path.append(child[1])))
+                stack.push(Node(child[0], cur_node.path+[child[1]]))
             
     
 
@@ -136,19 +138,21 @@ def breadthFirstSearch(problem: SearchProblem):
             continue
         visited.append(cur_node.state)
         if problem.isGoalState(cur_node.state):
+            # print(cur_node.path)
             return cur_node.path
         # get all available children
-        children = problem.getSuccessors(cur_node) # For a given state, children is a list of triples, (successor, action, stepCost)
+        # print(problem.getSuccessors(cur_node.state))
+        children = problem.getSuccessors(cur_node.state) # For a given state, children is a list of triples, (successor, action, stepCost)
         for child in children:
             if child[0] not in visited:
-                queue.push(Node(child[0],cur_node.path.append(child[1])))
+                queue.push(Node(child[0],cur_node.path+[child[1]]))
         
 
 def uniformCostSearch(problem: SearchProblem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
     heap = util.PriorityQueue()
-    heap.push(Node(SearchProblem.getStartState(),path = [], priority = 0))
+    heap.push(Node(problem.getStartState(), path = [], priority = 0), priority = 0)
     visited = []
     while not heap.isEmpty():
         cur_node = heap.pop()
@@ -160,7 +164,7 @@ def uniformCostSearch(problem: SearchProblem):
         children = problem.getSuccessors(cur_node.state)
         # children is a list of triples, (successor, action, stepCost)
         for child in children:
-            heap.update(Node(child[0],cur_node.path.append(child[1]),cur_node.priority+child[2]), cur_node.priority+child[2])
+            heap.update(Node(child[0],cur_node.path+[child[1]], cur_node.priority+child[2]), cur_node.priority+child[2])
     
 def nullHeuristic(state, problem=None):
     """
@@ -174,8 +178,9 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     "*** YOUR CODE HERE ***"
     # A* algo uses the heap structure too, but it is conducted with a heristic
     # Actually A* is quite like UnifromSearch
+    result = []
     heap = util.PriorityQueue()
-    heap.push(Node(problem.getStartState()), path = [], priority = 0)
+    heap.push(Node(problem.getStartState(), path = [], priority = 0), priority = 0)
     visited = [] # A list to store state. Think: can the elements of this list be the nodes rather than states?
     while not heap.isEmpty():
         cur_node = heap.pop()
@@ -183,11 +188,12 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
             continue
         visited.append(cur_node.state)
         if problem.isGoalState(cur_node.state):
-            return cur_node.path
+            result = cur_node.path
+            break
         children = problem.getSuccessors(cur_node.state)
         for child in children:
-            heap.update(Node(child[0], cur_node.path.append(child[1]), cur_node.priority+child[2]), (heuristic(child[2]) + cur_node.priority))
-        
+            heap.update(Node(child[0], cur_node.path+[child[1]], cur_node.priority+child[2]), priority=(heuristic(child[0], problem) + cur_node.priority +child[2] ))
+    return result
         
 # Abbreviations
 bfs = breadthFirstSearch

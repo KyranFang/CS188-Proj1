@@ -42,7 +42,7 @@ import util
 import time
 import search
 import pacman
-
+from copy import deepcopy
 
 class GoWestAgent(Agent):
     "An agent that goes West until it can't."
@@ -313,7 +313,7 @@ class CornersProblem(search.SearchProblem):
             if not startingGameState.hasFood(*corner):
                 print('Warning: no food in corner ' + str(corner))
         self._expanded = 0  # DO NOT CHANGE; Number of search nodes expanded
-
+        
     def getStartState(self):
         """
         Returns the start state (in your state space, not the full Pacman state
@@ -321,7 +321,7 @@ class CornersProblem(search.SearchProblem):
         """
         "*** YOUR CODE HERE done***"
         # Four falses represent that four corners have not been visited so far
-        return (self.startingPosition, [False, False, False, False])
+        return (self.startingPosition,[0,0,0,0])
 
     def isGoalState(self, state: Any):
         """
@@ -330,7 +330,7 @@ class CornersProblem(search.SearchProblem):
         "*** YOUR CODE HERE done***"
         # If all positions have already been visited, the state is the goal state
         return all(state[1])
-
+    
     def getSuccessors(self, state: Any):
         """
         Returns successor states, the actions they require, and a cost of 1.
@@ -353,31 +353,20 @@ class CornersProblem(search.SearchProblem):
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
             if not self.walls[nextx][nexty]:
-                nextPos = (nextx, nexty)
-                cost = 1  # I am not sure about this..., I get this conclusion from getCostOfActions
-                # if next position is the corner, then change the corresponding sign
-                if nextPos == self.corners[0]:
-                    cornerVis = state[1]
-                    cornerVis[0] = 1
-                    nextState = (nextPos, cornerVis)
-                elif nextPos == self.corners[1]:
-                    cornerVis = state[1]
-                    cornerVis[1] = 1
-                    nextState = (nextPos, cornerVis)
-                elif nextPos == self.corners[2]:
-                    cornerVis = state[1]
-                    cornerVis[2] = 1
-                    nextState = (nextPos, cornerVis)
-                elif nextPos == self.corners[3]:
-                    cornerVis = state[1]
-                    cornerVis[3] = 1
-                    nextState = (nextPos, cornerVis)
-                else:
-                    nextState = (nextPos, state[1])
-            successors.append(nextState, action, cost)
+                nextpos = (nextx, nexty)
+                cost = 1
+                try:
+                    tmp = deepcopy(state[1])
+                    tmp[self.corners.index(nextpos)] = 1
+                    nextState = (nextpos, tmp)
+                    del tmp
+                    # nextState = (nextpos,[1,state[1][1],state[1][2],state[1][3]])
+                except ValueError:
+                    nextState = (nextpos,state[1])
+                finally:
+                    successors.append((nextState, action, cost))
         self._expanded += 1  # DO NOT CHANGE
         return successors
-        "*** YOUR CODE HERE done***"
 
     def getCostOfActions(self, actions):
         """
@@ -394,6 +383,12 @@ class CornersProblem(search.SearchProblem):
                 return 999999
         return len(actions)
 
+def euclideanDistance(xy1: tuple, xy2: tuple):
+    return (xy1[0] - xy2[0]) ** 2 + (xy1[1] - xy2[1]) ** 2
+
+def manhatDistance(xy1: tuple, xy2: tuple):
+    return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
+
 
 def cornersHeuristic(state: Any, problem: CornersProblem):
     """
@@ -409,11 +404,9 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     admissible (as well as consistent).
     """
     corners = problem.corners  # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
-
-    "*** YOUR CODE HERE ***"
-    return 0  # Default to trivial solution
-
+    cornerDis = [manhatDistance(state[0], corners[i]) for i in range(4) if not state[1][i]]
+    # cornerDis = [euclideanDistance(state[0], corners[i]) for i in range(4) if not state[1][i]]
+    return 0 if len(cornerDis) == 0 else max(cornerDis)
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -434,8 +427,7 @@ class FoodSearchProblem:
     """
 
     def __init__(self, startingGameState: pacman.GameState):
-        self.start = (startingGameState.getPacmanPosition(),
-                      startingGameState.getFood())
+        self.start = (startingGameState.getPacmanPosition(), startingGameState.getFood())
         self.walls = startingGameState.getWalls()
         self.startingGameState = startingGameState
         self._expanded = 0  # DO NOT CHANGE
@@ -484,38 +476,56 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 
-def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
-    """
-    Your heuristic for the FoodSearchProblem goes here.
+class TempState:
+    def __init__(self, state, walls):
+        self.state = state
+        self.walls = walls
+    
+    def getWalls(self):
+        return self.walls
 
-    This heuristic must be consistent to ensure correctness.  First, try to come
-    up with an admissible heuristic; almost all admissible heuristics will be
-    consistent as well.
+    def getPacmanPosition(self):
+        return self.state[0]
 
-    If using A* ever finds a solution that is worse uniform cost search finds,
-    your heuristic is *not* consistent, and probably not admissible!  On the
-    other hand, inadmissible or inconsistent heuristics may find optimal
-    solutions, so be careful.
-
-    The state is a tuple ( pacmanPosition, foodGrid ) where foodGrid is a Grid
-    (see game.py) of either True or False. You can call foodGrid.asList() to get
-    a list of food coordinates instead.
-
-    If you want access to info like walls, capsules, etc., you can query the
-    problem.  For example, problem.walls gives you a Grid of where the walls
-    are.
-
-    If you want to *store* information to be reused in other calls to the
-    heuristic, there is a dictionary called problem.heuristicInfo that you can
-    use. For example, if you only want to count the walls once and store that
-    value, try: problem.heuristicInfo['wallCount'] = problem.walls.count()
-    Subsequent calls to this heuristic can access
-    problem.heuristicInfo['wallCount']
-    """
+def foodHeuristic(state, problem):
     position, foodGrid = state
-    "*** YOUR CODE HERE done***"
-    return euclideanHeuristic(position, foodGrid)
+    foodDis = [mazeDistance((j, i), position, TempState(state, problem.walls)) for i in range(foodGrid.height) for j in range(foodGrid.width) if foodGrid[j][i] == True]
+    return 0 if len(foodDis) == 0 else max(foodDis)
 
+class AnyFoodSearchProblem(PositionSearchProblem):
+    """
+    A search problem for finding a path to any food.
+
+    This search problem is just like the PositionSearchProblem, but has a
+    different goal test, which you need to fill in below.  The state space and
+    successor function do not need to be changed.
+
+    The class definition above, AnyFoodSearchProblem(PositionSearchProblem),
+    inherits the methods of the PositionSearchProblem.
+
+    You can use this search problem to help you fill in the findPathToClosestDot
+    method.
+    """
+
+    def __init__(self, gameState):
+        "Stores information from the gameState.  You don't need to change this."
+        # Store the food for later reference
+        self.food = gameState.getFood()
+        # Store info for the PositionSearchProblem (no need to change this)
+        self.walls = gameState.getWalls()
+        self.startState = gameState.getPacmanPosition()
+        self.costFn = lambda x: 1
+        self._visited, self._visitedlist, self._expanded = {}, [], 0  # DO NOT CHANGE
+
+    def isGoalState(self, state: Tuple[int, int]):
+        """
+        The state is Pacman's position. Fill this in with a goal test that will
+        complete the problem definition.
+        """
+        x, y = state
+        return self.food[x][y]
+        # state being in self.food means that the pacman is on a dot right now, 
+        # which is the goal state of one sub problem (or a step)
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -540,64 +550,7 @@ class ClosestDotSearchAgent(SearchAgent):
         Returns a path (a list of actions) to the closest dot, starting from
         gameState.
         """
-        # Here are some useful elements of the startState
-        startPosition = gameState.getPacmanPosition()
-        food = gameState.getFood()
-        walls = gameState.getWalls()
-        problem = AnyFoodSearchProblem(gameState)
-        path = []
-        from game import Directions
-        s = Directions.SOUTH
-        w = Directions.WEST
-        e = Directions.EAST
-        n = Directions.NORTH 
-        "*** YOUR CODE HERE ***"
-        # util.raiseNotDefined()
-        
-
-
-class AnyFoodSearchProblem(PositionSearchProblem):
-    """
-    A search problem for finding a path to any food.
-
-    This search problem is just like the PositionSearchProblem, but has a
-    different goal test, which you need to fill in below.  The state space and
-    successor function do not need to be changed.
-
-    The class definition above, AnyFoodSearchProblem(PositionSearchProblem),
-    inherits the methods of the PositionSearchProblem.
-
-    You can use this search problem to help you fill in the findPathToClosestDot
-    method.
-    """
-
-    def __init__(self, gameState):
-        "Stores information from the gameState.  You don't need to change this."
-        # Store the food for later reference
-        self.food = gameState.getFood()
-
-        # Store info for the PositionSearchProblem (no need to change this)
-        self.walls = gameState.getWalls()
-        self.startState = gameState.getPacmanPosition()
-        self.costFn = lambda x: 1
-        self._visited, self._visitedlist, self._expanded = {}, [], 0  # DO NOT CHANGE
-
-    def isGoalState(self, state: Tuple[int, int]):
-        """
-        The state is Pacman's position. Fill this in with a goal test that will
-        complete the problem definition.
-        """
-        "*** YOUR CODE HERE ***"
-        # def asList(self, key = True):
-        #     list = []
-        #     for x in range(self.width):
-        #         for y in range(self.height):
-        #             if self[x][y] == key: list.append( (x,y) )
-        #     return list
-        return state in self.food.asList()
-        # state being in self.food means that the pacman is on a random dot right now, 
-        # which is the goal state of this problem
-
+        return search.ucs(AnyFoodSearchProblem(gameState))
 
 def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pacman.GameState) -> int:
     """
@@ -614,6 +567,5 @@ def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pa
     walls = gameState.getWalls()
     assert not walls[x1][y1], 'point1 is a wall: ' + str(point1)
     assert not walls[x2][y2], 'point2 is a wall: ' + str(point2)
-    prob = PositionSearchProblem(
-        gameState, start=point1, goal=point2, warn=False, visualize=False)
+    prob = PositionSearchProblem(gameState, start=point1, goal=point2, warn=False, visualize=False)
     return len(search.bfs(prob))
